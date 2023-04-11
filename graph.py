@@ -32,8 +32,6 @@ class Edge:
     def reduce_capacity_to_zero(self):
         self.max_capacity = 0
         return self.reduce_capacity_to_zero()
-        
-    
 
 class Node:
     
