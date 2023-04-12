@@ -20,6 +20,12 @@ class Edge:
     def has_traffic(self):
         return (not self.is_blocked) and (self.remaining_capacity < self._max_capacity)
     
+    def get_flow(self):
+        if( self.is_blocked):
+            return 0
+        else:
+            return self._max_capacity - self.remaining_capacity
+    
     def get_capacity(self):
         return self.remaining_capacity
         
@@ -30,9 +36,9 @@ class Edge:
         self.remaining_capacity = self.remaining_capacity - traffic_added
         return new_traffic - traffic_added
     
-    def reset_capacity(self):
-        self.is_blocked = False
-        self.remaining_capacity = self._max_capacity
+    def reset_capacity(self, ignore_block = False):
+        if(ignore_block or not self.is_blocked):
+            self.remaining_capacity = self._max_capacity
     
     def reduce_capacity_to_zero(self):
         self.is_blocked = True
@@ -66,7 +72,7 @@ class Node:
 
     def is_sink(self):
         return len(self.outgoing_edges_heap) == 0 and len(self.ingoing_edges_heap) > 0
-   
+
    
    
 class FluxGraph:
@@ -93,22 +99,17 @@ class FluxGraph:
             # Read and add the edges:
             for i in range(1, len(csv_rows)):
                 node = self.nodes[csv_rows[i][0]] 
-                num_outgoing_edges = len(csv_rows[i])
+                num_outgoing_edges = len(csv_rows[i]) - 1
                 if(num_outgoing_edges == 0):
                     self.sink_node = node
                 else:
-                    for j in range(1, num_outgoing_edges):
+                    for j in range(1, num_outgoing_edges + 1):
                         cvs_edge = csv_rows[i][j].replace(")", "").split("(")
                         node_to = self.nodes[cvs_edge[0]]
                         self.edges.append(Edge(node, node_to, int(cvs_edge[1])))
                         node.add_outgoing(self.edges[len(self.edges) - 1])
                         node_to.add_ingoing(self.edges[len(self.edges) - 1])
-                        
-                print(node.name + " -> ", end="")
-                for edge in node.outgoing_edges_heap:
-                    print(edge.node_to.name + "(" + str(edge.get_capacity()) + ") ", end="")    
-                print()
-                        
+
             # Find the source:
             while(not node.is_source()):
                 node = node.ingoing_edges_heap[0].node_from
@@ -116,17 +117,21 @@ class FluxGraph:
         self.recalculate_flow()
                         
     
+    def reset_edge_capacities(self, unblock_edges=False):
+        for edge in self.edges:
+            edge.reset_capacity(unblock_edges)
+    
+    
     def recalculate_flow(self):
         self.flow = 0
-        for edge in self.edges:
-            edge.reset_capacity()
+        self.reset_edge_capacities(False)
         while True:
             augmenting_path = self._find_augmenting_path_bfs()
             if augmenting_path is None:
                 break
             
             # Find the bottleneck capacity of the augmenting path
-            bottleneck_capacity = min(edge.capacity for edge in augmenting_path)
+            bottleneck_capacity = min(edge.get_capacity() for edge in augmenting_path)
             
             # Update the flow and residual graph
             for edge in augmenting_path:
@@ -139,16 +144,15 @@ class FluxGraph:
     def _find_augmenting_path_bfs(self):
         visited = set()
         queue = deque([(self.source_node, [])])
-        while queue:
+        while queue: 
             node, path = queue.popleft()
             if node == self.sink_node:
                 return path
+            
             visited.add(node)
-
-            return None
             for edge in node.outgoing_edges_heap:
-                if not edge.is_full() > 0 and edge.to_node not in visited:
-                    queue.append((edge.to_node, path + [edge]))
+                if (not edge.is_full()) and (edge.node_to not in visited):
+                    queue.append((edge.node_to, path + [edge]))
 
         return None
 
@@ -156,3 +160,20 @@ class FluxGraph:
 
 fg = FluxGraph("ex1.csv")
 print(fg.flow)
+
+minimum = 999999
+min_edge = None
+
+fg.reset_edge_capacities(True)
+
+for edge in fg.edges:
+    edge.reduce_capacity_to_zero()
+    fg.recalculate_flow()
+    
+    if(fg.flow < minimum):
+        min_edge = edge
+        minimum = fg.flow
+    
+    fg.reset_edge_capacities(True)
+
+print("Réponse: " + str(minimum) + " en enlevant le Edge allant de " + min_edge.node_from.name + " à " + min_edge.node_to.name)
