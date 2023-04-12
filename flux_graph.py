@@ -1,5 +1,6 @@
 
 import math
+import heapq
 import csv
 
 class Edge:
@@ -7,6 +8,7 @@ class Edge:
     node_from = None
     node_to = None
     __max_capacity = -1
+    is_blocked = False
     current_capacity = -1
     
     def __init__(self, from_node, to_node, capacity):
@@ -15,13 +17,19 @@ class Edge:
         self.__max_capacity = capacity
         self.current_capacity = capacity
         
+    def __lt__(self, other):
+        return self.capacity > other.capacity
+        
     def is_full(self):
         return self.current_capacity <= 0
     
-    def get_capacity_left(self):
+    def has_traffic(self):
+        return (not self.is_blocked) and (self.current_capacity < self.__max_capacity)
+    
+    def get_capacity(self):
         return self.current_capacity
         
-    def add_traffic(self, new_traffic):
+    def reduce_capacity(self, new_traffic):
         if(new_traffic <= 0):
             return new_traffic
         traffic_added = math.min(new_traffic, self.current_capacity)
@@ -29,25 +37,32 @@ class Edge:
         return new_traffic - traffic_added
     
     def reset_capacity(self):
+        self.is_blocked = False
         self.current_capacity = self.max_capacity
     
     def reduce_capacity_to_zero(self):
+        self.is_blocked = True
         self.current_capacity = 0
 
 class Node:
-    
     name = ""
-    outgoing_edges = {}
-    ingoing_edges = {}
+    __outgoing_edges_heap = []
+    __ingoing_edges_heap = []
     
     def __init__(self, node_name):
         self.name = node_name
     
     def add_outgoing(self, edge):
-        self.outgoing_edges[edge.node_to] = edge
+        heapq.heappush(self.__outgoing_edges_heap, edge)
         
     def add_ingoing(self, edge):
-        self.ingoing_edges[edge.node_from] = edge
+        heapq.heappush(self.__ingoing_edges_heap, edge)
+        
+    def pop_highest_capacity_outgoing_edge(self):
+        return heapq.heappop(self.__outgoing_edges_heap)
+    
+    def pop_highest_capacity_ingoing_edge(self):
+        return heapq.heappop(self.__ingoing_edges_heap)
     
     def is_source(self):
         return len(self.outgoing_edges) > 0 and len(self.ingoing_edges) == 0
@@ -57,7 +72,6 @@ class Node:
   
   
 class FluxGraph:
-    
     source_node = None
     sink_node = None
     nodes = {}
@@ -90,11 +104,7 @@ class FluxGraph:
                         edge = Edge(node, node_to, int(cvs_edge[1]))
                         node.add_outgoing(edge)
                         node_to.add_ingoing(edge)
-    
-    
-    def get_outgoing_edges_of():
-        pass
-    
+                        
     
     def recalculate_flux():
         most_clogged_edge = None
