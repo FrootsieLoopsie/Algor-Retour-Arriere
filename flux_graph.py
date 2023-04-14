@@ -1,6 +1,11 @@
 from collections import deque
 import heapq
 import csv
+import os
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import networkx as nx
 
 class Edge:
 
@@ -12,7 +17,7 @@ class Edge:
         self.is_blocked = False
         
     def __lt__(self, other):
-        return self.remaining_capacity > other.remaining_capacity
+        return self.remaining_capacity < other.remaining_capacity
         
     def is_full(self):
         return self.remaining_capacity <= 0
@@ -28,6 +33,9 @@ class Edge:
     
     def get_capacity(self):
         return self.remaining_capacity
+    
+    def get_max_capacity(self):
+        return self._max_capacity
         
     def reduce_capacity(self, new_traffic):
         if(new_traffic <= 0):
@@ -82,16 +90,16 @@ class FluxGraph:
         self.sink_node = None
         self.nodes = {}
         self.edges = []
-        self.most_clogged_edge = None
         self.num_edges = 0
         self.num_edges_to_remove = 0
         self.flow = 0
+        
         with open(csvFileName, 'r', encoding='utf-8') as csvfile:
             csvreader = csv.reader(csvfile, delimiter=';')
             csv_rows = list(csvreader)
             
             # Read and add the nodes:
-            self.num_edges_to_remove = csv_rows[0][1]
+            self.num_edges_to_remove = int(csv_rows[0][1])
             for i in range(1, len(csv_rows)):
                 node_name = csv_rows[i][0]
                 self.nodes[node_name] = Node(node_name)
@@ -110,9 +118,10 @@ class FluxGraph:
                         node.add_outgoing(self.edges[len(self.edges) - 1])
                         node_to.add_ingoing(self.edges[len(self.edges) - 1])
 
-            # Find the source:
+            # Find the source (pretty proud of this heuristic):
             while(not node.is_source()):
                 node = node.ingoing_edges_heap[0].node_from
+                
             self.source_node = node
         self.recalculate_flow()
                         
@@ -131,6 +140,7 @@ class FluxGraph:
                 break
             
             # Find the bottleneck capacity of the augmenting path
+            # Since we're using heaps to store the edges, we can just look at the first edge; it's the one with the least capacity
             bottleneck_capacity = min(edge.get_capacity() for edge in augmenting_path)
             
             # Update the flow and residual graph
@@ -157,23 +167,54 @@ class FluxGraph:
         return None
 
 
+    def _get_best_edge_to_block_using_brute_force(self):
+        min_flow = 2147483648
+        min_edges = []
+        self.reset_edge_capacities()
+
+        for edge in self.edges:
+            edge.reduce_capacity_to_zero()
+            self.recalculate_flow()
+            
+            if(self.flow < min_flow):
+                min_edges = [edge]
+                min_flow = fg.flow
+                
+            elif(self.flow == min_flow):
+                min_edges.append(edge)
+            
+            edge.is_blocked = False
+            self.reset_edge_capacities()
+            
+        return (min_flow, min_edges)
+    
+    
+    
+    def draw(fileName = "flux_network_result.jpg"):
+        pass
+
+
+
+
+# Change working directory to the directory of the current python file:
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+os.chdir(dname)
+
 
 fg = FluxGraph("ex1.csv")
-print(fg.flow)
+print("Max initial flow is: " + str(fg.flow))
 
-minimum = 999999
-min_edge = None
-
-fg.reset_edge_capacities(True)
-
-for edge in fg.edges:
-    edge.reduce_capacity_to_zero()
-    fg.recalculate_flow()
+for i in range(fg.num_edges_to_remove):
     
-    if(fg.flow < minimum):
-        min_edge = edge
-        minimum = fg.flow
+    min_flow, min_edges = fg._get_best_edge_to_block_using_brute_force()
     
-    fg.reset_edge_capacities(True)
-
-print("Réponse: " + str(minimum) + " en enlevant le Edge allant de " + min_edge.node_from.name + " à " + min_edge.node_to.name)
+    
+    if(len(min_edges) == 1):
+        print("Réponse (par force brute): " + str(min_flow) + " en enlevant le Edge allant de " + min_edges[0].node_from.name + " à " + min_edges[0].node_to.name)
+        min_edges[0].reduce_capacity_to_zero()
+    else:
+        print("Réponses (par force brute): " + str(min_flow) + " en enlevant un des Edges suivants: ")
+        for edge in min_edges:
+            print(" -> " + edge.node_from.name + " à " + edge.node_to.name + " (" + str(edge.get_flow()) + "/" + str(edge.get_max_capacity()) + ")")
+            edge.reduce_capacity_to_zero()
