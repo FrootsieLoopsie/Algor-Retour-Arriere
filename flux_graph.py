@@ -183,7 +183,7 @@ class FluxGraph:
             
             edge.is_blocked = False
             self.reset_edge_capacities()
-            
+        
         return (min_flow, min_edges)
     
     
@@ -197,7 +197,7 @@ class FluxGraph:
         
         for edge in self.edges:
             edge_name = "(" + str(edge.get_flow()) + "/" + str(edge.get_max_capacity()) + ")"
-            edge_color = "red" if edge.has_flow() else "gray" if edge.is_blocked else "black"
+            edge_color = "navy" if edge.has_flow() else "pink" if edge.is_blocked else "gray"
             G.add_edge(edge.node_from.name, edge.node_to.name, label=edge_name, color=edge_color)
         
         # Draw the graph with node labels, edge labels, edge colors, and arrows
@@ -215,10 +215,10 @@ class FluxGraph:
             dx *= 1 - arrow_length / (dx ** 2 + dy ** 2) ** 0.5
             dy *= 1 - arrow_length / (dx ** 2 + dy ** 2) ** 0.5
             plt.arrow(x1, y1, dx, dy, head_width=0.025, head_length=0.05, length_includes_head=True, color=G[u][v]['color'])
-            plt.text((x1+x2)/2, (y1+y2)/2, label, horizontalalignment='center', verticalalignment='center', fontsize=10)
+            plt.text((x1+x2)/2, (y1+y2)/2, label, horizontalalignment='center', verticalalignment='center', fontsize=10, color=G[u][v]['color'])
 
         # Save the graph drawing to a file
-        plt.savefig(fileName + ".png")
+        plt.savefig("solution_" + fileName + ".png")
 
 
 
@@ -228,21 +228,24 @@ dname = os.path.dirname(abspath)
 os.chdir(dname)
 
 
-fg = FluxGraph("ex1.csv")
+file_name = "ex1.csv"
+fg = FluxGraph(file_name)
 print("Max initial flow is: " + str(fg.flow))
-
-
-fg.draw()
 
 for i in range(fg.num_edges_to_remove):
     
     min_flow, min_edges = fg._get_best_edge_to_block_using_brute_force()
+    fg.recalculate_flow()
     
     if(len(min_edges) == 1):
-        print("Réponse (par force brute): " + str(min_flow) + " en enlevant le Edge allant de " + min_edges[0].node_from.name + " à " + min_edges[0].node_to.name)
-        min_edges[0].reduce_capacity_to_zero()
+        print("Réponse (par force brute): flow de " + str(min_flow) + " en enlevant le Edge allant de " + min_edges[0].node_from.name + " à " + min_edges[0].node_to.name)
     else:
-        print("Réponses (par force brute): " + str(min_flow) + " en enlevant un des Edges suivants: ")
+        print("Réponse (par force brute) est un flow de " + str(min_flow) + " en enlevant un des Edges suivants: ")
         for edge in min_edges:
             print(" -> " + edge.node_from.name + " à " + edge.node_to.name + " (" + str(edge.get_flow()) + "/" + str(edge.get_max_capacity()) + ")")
-            edge.reduce_capacity_to_zero()
+    
+    for edge in min_edges:
+        edge.reduce_capacity_to_zero()
+
+fg.recalculate_flow()
+fg.draw(file_name.replace(".csv", ""))
