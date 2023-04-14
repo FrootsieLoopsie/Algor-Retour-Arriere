@@ -244,8 +244,7 @@ for i in range(fg.num_edges_to_remove):
         for edge in min_edges:
             print(" -> " + edge.node_from.name + " à " + edge.node_to.name + " (" + str(edge.get_flow()) + "/" + str(edge.get_max_capacity()) + ")")
     
-    for edge in min_edges:
-        edge.reduce_capacity_to_zero()
+    min_edges[0].reduce_capacity_to_zero()
 
 fg.recalculate_flow()
 fg.draw(file_name.replace(".csv", ""))
