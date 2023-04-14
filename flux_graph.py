@@ -2,10 +2,8 @@ from collections import deque
 import heapq
 import csv
 import os
-
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import networkx as nx
+import matplotlib.pyplot as plt
 
 class Edge:
 
@@ -22,7 +20,7 @@ class Edge:
     def is_full(self):
         return self.remaining_capacity <= 0
     
-    def has_traffic(self):
+    def has_flow(self):
         return (not self.is_blocked) and (self.remaining_capacity < self._max_capacity)
     
     def get_flow(self):
@@ -190,9 +188,37 @@ class FluxGraph:
     
     
     
-    def draw(fileName = "flux_network_result.jpg"):
-        pass
+    def draw(self, fileName = "flux_network_result"):
+        
+        G = nx.Graph()
+        
+        for node_name in self.nodes:
+            G.add_node(node_name)
+        
+        for edge in self.edges:
+            edge_name = "(" + str(edge.get_flow()) + "/" + str(edge.get_max_capacity()) + ")"
+            edge_color = "red" if edge.has_flow() else "gray" if edge.is_blocked else "black"
+            G.add_edge(edge.node_from.name, edge.node_to.name, label=edge_name, color=edge_color)
+        
+        # Draw the graph with node labels, edge labels, edge colors, and arrows
+        pos = nx.spring_layout(G)
+        nx.draw_networkx_nodes(G, pos=pos)
+        nx.draw_networkx_labels(G, pos=pos)
+        edge_labels = nx.get_edge_attributes(G, 'label')
+        for edge, label in edge_labels.items():
+            u, v = edge
+            x1, y1 = pos[u]
+            x2, y2 = pos[v]
+            dx = x2 - x1
+            dy = y2 - y1
+            arrow_length = 0.05
+            dx *= 1 - arrow_length / (dx ** 2 + dy ** 2) ** 0.5
+            dy *= 1 - arrow_length / (dx ** 2 + dy ** 2) ** 0.5
+            plt.arrow(x1, y1, dx, dy, head_width=0.025, head_length=0.05, length_includes_head=True, color=G[u][v]['color'])
+            plt.text((x1+x2)/2, (y1+y2)/2, label, horizontalalignment='center', verticalalignment='center', fontsize=10)
 
+        # Save the graph drawing to a file
+        plt.savefig(fileName + ".png")
 
 
 
@@ -205,10 +231,12 @@ os.chdir(dname)
 fg = FluxGraph("ex1.csv")
 print("Max initial flow is: " + str(fg.flow))
 
+
+fg.draw()
+
 for i in range(fg.num_edges_to_remove):
     
     min_flow, min_edges = fg._get_best_edge_to_block_using_brute_force()
-    
     
     if(len(min_edges) == 1):
         print("Réponse (par force brute): " + str(min_flow) + " en enlevant le Edge allant de " + min_edges[0].node_from.name + " à " + min_edges[0].node_to.name)
