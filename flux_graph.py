@@ -81,13 +81,14 @@ class Node:
 
    
    
-class FluxGraph:
+class FlowNetwork:
     
     def __init__(self, csvFileName):
         self.source_node = None
         self.sink_node = None
         self.nodes = {}
         self.edges = []
+        self._most_clogged_edge = None
         self.num_edges = 0
         self.num_edges_to_remove = 0
         self.flow = 0
@@ -145,8 +146,14 @@ class FluxGraph:
             for edge in augmenting_path:
                 edge.reduce_capacity(bottleneck_capacity)
                 
+                # Bonus heuristic: 
+                if(self._most_clogged_edge == None):
+                    self._most_clogged_edge = edge
+                    
+                elif(self._candidate_edge.get_flow() < edge.get_flow()):
+                    self._most_clogged_edge = edge
+                
             self.flow += bottleneck_capacity
-
     
 
     def _find_augmenting_path_bfs(self):
@@ -154,14 +161,16 @@ class FluxGraph:
         queue = deque([(self.source_node, [])])
         while queue: 
             node, path = queue.popleft()
+            
+            # Condition d'arrêt:
             if node == self.sink_node:
                 return path
             
+            # Visiter les prochains noeuds:
             visited.add(node)
             for edge in node.outgoing_edges_heap:
                 if (not edge.is_full()) and (edge.node_to not in visited):
                     queue.append((edge.node_to, path + [edge]))
-
         return None
 
 
@@ -174,7 +183,10 @@ class FluxGraph:
             edge.reduce_capacity_to_zero()
             self.recalculate_flow()
             
-            if(self.flow < min_flow):
+            if(self.flow == 0):
+                return (0, edge)
+                
+            elif(self.flow < min_flow):
                 min_edges = [edge]
                 min_flow = fg.flow
                 
@@ -188,8 +200,35 @@ class FluxGraph:
     
     
     
-    def draw(self, fileName = "flux_network_result"):
+    def _get_best_edges_to_block_using_backtracking(self, use_heuristics=False):
         
+        # Noter qu'à l'initialisation, le flow initial est déjà calculé par Ford-Fulkerson et BFS.
+        
+        # On initialise une pile pour stocker les noeuds à explorer dans l'arbre de recherche.
+        # Chaque élément représentera une configuration du FlowNetwork:
+        #   - Les arcs retirés, et le flow maximal associé.
+        #   - Élément initial: aucun arc n'est blocké
+        heap = [([], self.flow)]
+        
+        min_edges = []
+        min_flow = []
+        
+        # Tant que la pile n'est pas vide, on prend le prochain tuple de la pile et on calcule le flot maximal 
+        # correspondant à ce noeud en utilisant Ford-Fulkerson.
+        while len(heap) > 0:
+            edges_removed, flow = heapq.heappop(heap)
+            for edge in edges_removed:
+                edge.is_blocked = True
+                
+            
+        
+        pass
+    
+    
+    
+    
+    # Bonus!
+    def draw(self, fileName = "flux_network_result"):
         G = nx.Graph()
         
         for node_name in self.nodes:
@@ -229,7 +268,7 @@ os.chdir(dname)
 
 
 file_name = "ex1.csv"
-fg = FluxGraph(file_name)
+fg = FlowNetwork(file_name)
 print("Max initial flow is: " + str(fg.flow))
 
 for i in range(fg.num_edges_to_remove):
