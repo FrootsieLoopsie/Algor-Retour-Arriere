@@ -347,4 +347,4 @@ if __name__ == '__main__':
 
     # Save the txt:
     with open("resultats_" + file_name.replace(".csv", "") + ".txt","w+", encoding='utf-8') as f:
-        f.write(("\n").join([str(edge) for edge in min_edges]))
+        f.write(("\n").join([str(edge) for edge in min_edges]).replace(" à ", ","))

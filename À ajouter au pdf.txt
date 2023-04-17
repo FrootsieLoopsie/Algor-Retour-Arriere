@@ -1,0 +1,66 @@
+
+Décrire le fonctionnement de l'aglorithme: À faire
+Compléxité: À faire
+
+Output et données de performances (temps d'exécution):
+
+- ex1.csv:
+	Flow initial: 6
+	Réponse est un flow de flow de 3 en enlevant l'arc (6 à 8)
+	Temps d'exécution: 1.001 millisecondes
+
+- ex2.csv:
+	Flow initial: 11
+	Réponse est un flow de 6 en enlevant les arcs suivants: (15 à 17), (14 à 17)
+	Temps d'exécution: 213.095 millisecondes
+
+- ex3.csv:
+	Flow initial: 5
+	Réponse est un flow de 1 en enlevant les arcs suivants: (0 à 2), (0 à 1)
+	Temps d'exécution: 2.006 millisecondes
+
+
+Améliorations apportées:
+
+1) Sauvegarde d'une visualisation du graphe final.
+2) Vérification d'un cas trivial:
+
+  - On vérifie si le nombre d'arcs entrant dans le puis ou le nombre d'arcs sortants de la source
+    est égal ou inférieur au nombre d'arcs que l'on peut bloquer. Si c'est le cas, en une opération,
+    nous aurions trouvé la solution. Sinon, le temps d'exécution ne sera pas du tout impacté, donc aucune 
+    raison de pas l'inclure.
+
+3) Ne regarder que les arêtes intéressantes, et en ordre d'intérêt:
+
+  - Si on ne veut enlever qu'un arc, plutôt qu'évaluer tous les arcs, on ne regarde que ceux qui ont initialement du flow.
+    Lorsque c'est le cas, le nombre de configurations du graphe à vérifier sont diminuées d'un ordre de grandeur, et sinon,
+    ça ne coûte que m opérations booléeanes supplémentaires, coût négligable.
+
+  - On regarde les arcs en ordre descendant de leur flow initial, ce qui a comme but de de trouver la solution optimale
+    plus vite. Nous permettrait des heuristiques et solutions approximatives rapides si la taille de m est trop grande.
+    Concrètement par contre, sans heuristique, le temps d'éxecution reste idem car on va vérifier chaque configuration
+    importante avec le retour-arrière.
+
+4) Parcours de l'arbre de recherche en commençant par les feuilles
+
+  - Habituellement, le parcours le l'arbre de recherche dans l'algorithme de retour-arrière se
+    fait en PreOrder, c.a.d. on commence par la racine, puis on ajoute un élément en développant
+    ses childrens récursivement.
+          -> D'ailleurs, c'est de là que vient le nom de l'algorithme; si une solution non-optimale
+             ou un maximum local est trouvée, l'algorithme remonte l'arbre vérifier d'autres noeuds.
+
+  - Or, dans ce cas-ci, nous ne parcourons que les solutions de l'arbre ayant k arcs retirés.
+          -> Le but est que, pour notre mise en situation, nous avons *toujours* avantage à blocker plus
+             d'arcs plutôt que moins, donc la solution sera trouvée plus tôt. Ça l'aurait été une autre
+             histoire s'il y avait un coût associé à bloquer un arc.
+          -> Vu que nous ne cherchons pas le minimum d'arcs à retirer, mais plutôt le flow minimal après
+             retirer k arcs, alors nous n'avons aucune raison d'évaluer les profondeurs < k.
+          -> De plus, cette amélioration permet d'éviter de garder une arborescence en mémoire et éviter les 
+             appels récursifs, ce qui améliore la performance temporelle et de mémoire;
+                  - Aucune copie ni reconstruction de graphe n'est faite, et le stockage en mémoire de minimums 
+                    locaux de l'arbre de recherche n'est plus nécessaire avec cette approche. 
+
+  - On peut se le permettre car une instance de FlowNetwork peut aisément blocker plusieurs de ses arcs
+    avant même de recalculer le flow maximal par Ford-Fulkerson. 
+          -> Plus k est grand, moins il y aura de combinaisons à évaluer.
+             Ça va venir diminuer la complexité de notre algorithme.
