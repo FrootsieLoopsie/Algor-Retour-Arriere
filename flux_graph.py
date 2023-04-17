@@ -22,7 +22,7 @@ class Edge:
         self.is_blocked = False
         
     def __lt__(self, other):
-        return self.remaining_capacity < other.remaining_capacity
+        return self.remaining_capacity > other.remaining_capacity
         
     def __str__(self):
         return "(" + self.node_from.name + " à " + self.node_to.name + ")"  
@@ -39,7 +39,7 @@ class Edge:
         else:
             return self._max_capacity - self.remaining_capacity
     
-    def get_capacity(self):
+    def get_remaining_capacity(self):
         return self.remaining_capacity
     
     def get_max_capacity(self):
@@ -82,10 +82,7 @@ class Node:
         heapq.heappush(self.ingoing_edges_heap, edge)
         
     def get_highest_capacity_outgoing_edge(self):
-        return self.outgoing_edges_heap[0]
-    
-    def pop_highest_capacity_ingoing_edge(self):
-        return heapq.heappop(self.ingoing_edges_heap)
+        return self.outgoing_edges_heap[-1]
     
     def is_source(self):
         return len(self.outgoing_edges_heap) > 0 and len(self.ingoing_edges_heap) == 0
@@ -153,7 +150,7 @@ class FlowNetwork:
             
             # Find the bottleneck capacity of the augmenting path
             # Since we're using heaps to store the edges, we can just look at the first edge; it's the one with the least capacity
-            bottleneck_capacity = min(edge.get_capacity() for edge in augmenting_path)
+            bottleneck_capacity = min(edge.get_remaining_capacity() for edge in augmenting_path)
             
             # Update the flow and residual graph
             for edge in augmenting_path:
@@ -205,13 +202,26 @@ class FlowNetwork:
             return (0, self.sink_node.ingoing_edges_heap)
         
         # Initialisation d'une matrice des combinaisons possibles d'arcs à retirer (max profondeur de k = num_edges_to_remove)
-        edges_with_flow = [edge for edge in self.edges if edge.has_flow()]
+        edges_with_flow_heap = []
+        for edge in self.edges:
+            if(self.num_edges_to_remove > 1 or edge.has_flow()): heapq.heappush(edges_with_flow_heap, edge)
+
+        # Améliorations: Ne regarder que les arêtes intéressantes, et en ordre d'intérêt
+        #
+        #   - Si on ne veut enlever qu'un arc, plutôt qu'évaluer tous les arcs, on ne regarde que ceux qui ont initialement du flow.
+        #     Lorsque c'est le cas, le nombre de configurations du graphe à vérifier sont diminuées d'un ordre de grandeur, et sinon,
+        #     ça ne coûte que m opérations booléeanes supplémentaires, coût négligable.
+        #
+        #   - On regarde les arcs en ordre descendant de leur flow initial, ce qui a comme but de de trouver la solution optimale
+        #     plus vite. Nous permettrait des heuristiques et solutions approximatives rapides si la taille de m est trop grande.
+        #     Concrètement par contre, sans heuristique, le temps d'éxecution reste idem car on va vérifier chaque configuration
+        #     importante avec le retour-arrière.
         
         # Pour chaque 'noeud' ou configuration suivant dans l'arbre de recherche, c.a.d. pour chaque combinaison 
         # d'arêtes qui pourraientt être bloquées ensemble, on compare sa valeur (i.e. son flow max).
 
         # Parcourir toutes les k-combinaisions d'arcs, sans réevaluer les doublons:
-        leaves = combinations(edges_with_flow, self.num_edges_to_remove)
+        leaves = combinations(edges_with_flow_heap, self.num_edges_to_remove)
             
         # Amélioration: Parcours de l'arbre de recherche en commençant par les feuilles
         #
@@ -221,18 +231,21 @@ class FlowNetwork:
         #           -> D'ailleurs, c'est de là que vient le nom de l'algorithme; si une solution non-optimale
         #              ou un maximum local est trouvée, l'algorithme remonte l'arbre vérifier d'autres noeuds.
         #
-        #   - Or, dans ce cas-ci, nous parcourons les solutions de l'arbre en ordre de profondeur, commençant par
-        #     le bas et montant vers la racine.
+        #   - Or, dans ce cas-ci, nous ne parcourons que les solutions de l'arbre ayant k arcs retirés.
         #           -> Le but est que, pour notre mise en situation, nous avons *toujours* avantage à blocker plus
         #              d'arcs plutôt que moins, donc la solution sera trouvée plus tôt. Ça l'aurait été une autre
         #              histoire s'il y avait un coût associé à bloquer un arc.
         #           -> Vu que nous ne cherchons pas le minimum d'arcs à retirer, mais plutôt le flow minimal après
-        #              retirer k arcs, alors nous n'avons pas besoin d'évaluer les profondeurs < k.
-        #           -> De plus, ça permet d'éviter de garder une arborescence en mémoire et éviter les appels récursifs,
-        #              ce qui améliore la performance temporelle et de mémoire. 
+        #              retirer k arcs, alors nous n'avons aucune raison d'évaluer les profondeurs < k.
+        #           -> De plus, cette amélioration permet d'éviter de garder une arborescence en mémoire et éviter les 
+        #              appels récursifs, ce qui améliore la performance temporelle et de mémoire;
+        #                   - Aucune copie ni reconstruction de graphe n'est faite, et le stockage en mémoire de minimums 
+        #                     locaux de l'arbre de recherche n'est plus nécessaire avec cette approche. 
         #
         #   - On peut se le permettre car une instance de FlowNetwork peut aisément blocker plusieurs de ses arcs
-        #     avant même de recalculer le flow maximal par Ford-Fulkerson. Donc, c'est un gain significatif.
+        #     avant même de recalculer le flow maximal par Ford-Fulkerson. 
+        #           -> Plus k est grand, moins il y aura de combinaisons à évaluer.
+        #              Ça va venir diminuer la complexité de notre algorithme.
             
         # Parcourir toutes les combinaisons de k arcs à retirer, et faire le parcours:
         for edge_combination in leaves:
@@ -299,7 +312,7 @@ abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
 
-file_name = "ex2.csv"
+file_name = "ex3.csv"
 G = FlowNetwork(file_name)
 print("Max initial flow is: " + str(G.flow))
 
@@ -313,7 +326,7 @@ G.recalculate_flow()
 if(len(min_edges) == 0):
     print("Réponse trouvée était de suprimer aucun arc. Erreur?")
 elif(len(min_edges) == 1):
-    print("Réponse est un flow de flow de " + str(min_flow) + " en enlevant l'arc allant de " + min_edges[0].node_from.name + " à " + min_edges[0].node_to.name)
+    print("Réponse est un flow de flow de " + str(min_flow) + " en enlevant l'arc " + str(min_edges[0]))
 else:
     print("Réponse est un flow de " + str(min_flow) + " en enlevant les arcs suivants: " + (", ").join([str(edge) for edge in min_edges]))
     
