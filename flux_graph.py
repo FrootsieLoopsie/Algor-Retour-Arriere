@@ -192,17 +192,28 @@ class FlowNetwork:
         min_flow = self.flow
         min_edges = []
         
+        # Amélioration: Vérification d'un cas trivial
+        #
+        #   - On vérifie si le nombre d'arcs entrant dans le puis ou le nombre d'arcs sortants de la source
+        #     est égal ou inférieur au nombre d'arcs que l'on peut bloquer. Si c'est le cas, en une opération,
+        #     nous aurions trouvé la solution. Sinon, le temps d'exécution ne sera pas du tout impacté, donc aucune 
+        #     raison de pas l'inclure.
+        #
+        if(len(self.source_node.outgoing_edges_heap) <= self.num_edges_to_remove):
+            return (0, self.source_node.outgoing_edges_heap)
+        if(len(self.sink_node.ingoing_edges_heap) <= self.num_edges_to_remove):
+            return (0, self.sink_node.ingoing_edges_heap)
+        
         # Initialisation d'une matrice des combinaisons possibles d'arcs à retirer (max profondeur de k = num_edges_to_remove)
         edges_with_flow = [edge for edge in self.edges if edge.has_flow()]
         
-        # Pour chaque noeud suivant dans l'arbre de recherche, c.a.d. pour chaque arête 
-        # qui pourrait être bloquée, on compare sa valeur (i.e. son flow max) pour continuer
-        # à se déplacer vers un minimum local, qui sera notre solution partielle.
+        # Pour chaque 'noeud' ou configuration suivant dans l'arbre de recherche, c.a.d. pour chaque combinaison 
+        # d'arêtes qui pourraientt être bloquées ensemble, on compare sa valeur (i.e. son flow max).
 
         # Parcourir toutes les k-combinaisions d'arcs, sans réevaluer les doublons:
         leaves = combinations(edges_with_flow, self.num_edges_to_remove)
             
-        # Explication de l'amélioration: Parcours de l'arbre de recherche en commençant par les feuilles
+        # Amélioration: Parcours de l'arbre de recherche en commençant par les feuilles
         #
         #   - Habituellement, le parcours le l'arbre de recherche dans l'algorithme de retour-arrière se
         #     fait en PreOrder, c.a.d. on commence par la racine, puis on ajoute un élément en développant
@@ -228,7 +239,6 @@ class FlowNetwork:
                     
             # On supprime toutes les arêtes, puis réevalue le flow en utilisant F-F:
             for edge in edge_combination:
-                print(edge)
                 edge.block()
             self.recalculate_flow()
                     
@@ -236,19 +246,16 @@ class FlowNetwork:
             if(self.flow == 0):
                 return (0, edge_combination)
                 
-            # Si le nouveau flow est le minimum par rapport à cette profondeur de l'arbre.
-            #   - Autrement ça veut dire qu'on avait déjà atteint le minimum local précédemment, alors on backtrackerait 
-            #     dans l'arbre de recherche. Avec notre représentation 'edge_combinations' de cet arbre décisionnel, ça
-            #     signifierait tout simplement de passer à la prochaine combinaison d'arc.
+            # Si le nouveau flow est le minimum par rapport à cette profondeur de l'arbre:
             if(self.flow < min_flow):
                 min_flow = self.flow
                 min_edges = edge_combination
             
-            # On débloque et reset, pour la prochaine itération/feuille:
+            # On débloque les arcs, ça va reset pour la prochaine itération/feuille:
             for edge in edge_combination:
                 edge.unblock()
             
-        # Retourner le meilleur minimum local, si aucune solution optimale (flow = 0) n'a été trouvé:
+        # Retourner le meilleur minimum local, si aucune solution optimale (flow = 0) n'a été trouvée:
         return (min_flow, min_edges)
             
 
@@ -292,7 +299,7 @@ abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
 
-file_name = "ex3.csv"
+file_name = "ex2.csv"
 G = FlowNetwork(file_name)
 print("Max initial flow is: " + str(G.flow))
 
@@ -302,11 +309,12 @@ for edge in min_edges:
     edge.block()
     
 G.recalculate_flow()
-G.draw(file_name.replace(".csv", ""))
     
 if(len(min_edges) == 0):
     print("Réponse trouvée était de suprimer aucun arc. Erreur?")
 elif(len(min_edges) == 1):
     print("Réponse est un flow de flow de " + str(min_flow) + " en enlevant l'arc allant de " + min_edges[0].node_from.name + " à " + min_edges[0].node_to.name)
 else:
-    print("Réponse est un flow de " + str(min_flow) + " en enlevant les arcs suivants: " + min_edges.join(", "))
+    print("Réponse est un flow de " + str(min_flow) + " en enlevant les arcs suivants: " + (", ").join([str(edge) for edge in min_edges]))
+    
+G.draw(file_name.replace(".csv", ""))
