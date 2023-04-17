@@ -319,7 +319,7 @@ if __name__ == '__main__':
     # Lecture du fichier et construction du graphe:
     file_name = sys.argv[1]
     G = FlowNetwork(file_name)
-    print("\nMax initial flow is: " + str(G.flow))
+    print("\nFlow initial: " + str(G.flow))
 
     # Timer, start!
     time_started = time.time()
@@ -333,7 +333,7 @@ if __name__ == '__main__':
     if(len(min_edges) == 0): print("Réponse trouvée était de suprimer aucun arc. Erreur?")
     elif(len(min_edges) == 1): print("Réponse est un flow de flow de " + str(min_flow) + " en enlevant l'arc " + str(min_edges[0]))
     else: print("Réponse est un flow de " + str(min_flow) + " en enlevant les arcs suivants: " + (", ").join([str(edge) for edge in min_edges]))
-    print(f'Temps d\'ex: {(time_elapsed * 1000):.3f} millisecondes\n')
+    print(f'Temps d\'exécution: {(time_elapsed * 1000):.3f} millisecondes\n')
     
     # Recalculer pour l'image (for the png):
     for edge in min_edges: edge.block()
