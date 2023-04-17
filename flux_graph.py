@@ -24,6 +24,9 @@ class Edge:
     def __lt__(self, other):
         return self.remaining_capacity < other.remaining_capacity
         
+    def __str__(self):
+        return "(" + self.node_from.name + " à " + self.node_to.name + ")"  
+
     def is_full(self):
         return self.remaining_capacity <= 0
     
@@ -59,6 +62,9 @@ class Edge:
 
     def unblock(self):
         self.is_blocked = False
+        
+    
+        
 
 class Node:
 
@@ -87,7 +93,8 @@ class Node:
     def is_sink(self):
         return len(self.outgoing_edges_heap) == 0 and len(self.ingoing_edges_heap) > 0
 
-   
+
+
 class FlowNetwork:
     
     def __init__(self, csvFileName):
@@ -173,115 +180,78 @@ class FlowNetwork:
                     queue.append((edge.node_to, path + [edge]))
         return None
 
-
-    def _get_best_edge_to_block_using_brute_force(self, k):
-        min_flow = self.flow
-        min_edges = []
-        self.reset_edge_capacities()
-
-        for edge in self.edges:
-            edge.block()
-            self.recalculate_flow()
-            
-            if(self.flow == 0):
-                return (0, edge)
-                
-            elif(self.flow < min_flow):
-                min_edges = [edge]
-                min_flow = G.flow
-                
-            elif(self.flow == min_flow):
-                min_edges.append(edge)
-            
-            edge.unblock()
-            self.reset_edge_capacities()
-        
-        return (min_flow, min_edges)
     
-    
-    def _get_best_edges_to_block_using_branch_and_bound(self):
-        
-        # Noter qu'à l'initialisation de l'objet FlowNetwork, le flow initial est déjà calculé par Ford-Fulkerson et BFS.
-        min_flow = self.flow
-        min_edges = []
-        
-        # Condition initiale: si le réseau de transport n'a déjà pas de flow, on retourne immédiatement:
-        if(self.flow < 1):
-            return (0, [])
-        
-        # Initialisation d'une matrice des combinaisons possibles d'arcs à retirer 
-        # (max profondeur de k = num_edges_to_remove)
-        edges_with_flow = [edge for edge in self.edges if edge.has_flow()]
-        edge_combinations = combinations(edges_with_flow, self.num_edges_to_remove)
-        
-        for search_tree_branch in edge_combinations:
-            pass
-            
     
     def get_best_edges_to_block_using_backtracking(self):
         
         # Noter qu'à l'initialisation de l'objet FlowNetwork, le flow initial est déjà calculé par Ford-Fulkerson et BFS.
-        min_flows = [self.flow]
-        min_edges = [[]]
         
-        # Condition initiale: si le réseau de transport n'a déjà pas de flow, on retourne immédiatement:
-        if(self.flow < 1):
-            print("Attention! Retourné tôt car le flow initial était " + str(self.flow) + " (< 1)")
-            return (0, [])
+        # Ci-dessous; en stockant les configurations optimales, on peut utiliser la même instance de FlowNetwork:
+        #   - Ça nous permet d'éviter de copier les objets dans le heap et de devoir ajuster leurs pointers,
+        #     comme serait le cas avec un arbre de recherche exhaustif et tuples.
+        min_flow = self.flow
+        min_edges = []
         
         # Initialisation d'une matrice des combinaisons possibles d'arcs à retirer (max profondeur de k = num_edges_to_remove)
-        # Ça nous donne une liste des branches de l'arbre de recherche qu'on utilisera pour Backtracking:
         edges_with_flow = [edge for edge in self.edges if edge.has_flow()]
-        edge_combinations = combinations(edges_with_flow, self.num_edges_to_remove)
         
         # Pour chaque noeud suivant dans l'arbre de recherche, c.a.d. pour chaque arête 
         # qui pourrait être bloquée, on compare sa valeur (i.e. son flow max) pour continuer
-        # à se déplacer vers un minimum local, qui sera notre solution partielle:
-        for search_tree_branch in edge_combinations:
+        # à se déplacer vers un minimum local, qui sera notre solution partielle.
+
+        # Parcourir toutes les k-combinaisions d'arcs, sans réevaluer les doublons:
+        leaves = combinations(edges_with_flow, self.num_edges_to_remove)
             
-            local_minimum_flow = min_flows[0]
-            local_minimum_edges = []
+        # Explication de l'amélioration: Parcours de l'arbre de recherche en commençant par les feuilles
+        #
+        #   - Habituellement, le parcours le l'arbre de recherche dans l'algorithme de retour-arrière se
+        #     fait en PreOrder, c.a.d. on commence par la racine, puis on ajoute un élément en développant
+        #     ses childrens récursivement.
+        #           -> D'ailleurs, c'est de là que vient le nom de l'algorithme; si une solution non-optimale
+        #              ou un maximum local est trouvée, l'algorithme remonte l'arbre vérifier d'autres noeuds.
+        #
+        #   - Or, dans ce cas-ci, nous parcourons les solutions de l'arbre en ordre de profondeur, commençant par
+        #     le bas et montant vers la racine.
+        #           -> Le but est que, pour notre mise en situation, nous avons *toujours* avantage à blocker plus
+        #              d'arcs plutôt que moins, donc la solution sera trouvée plus tôt. Ça l'aurait été une autre
+        #              histoire s'il y avait un coût associé à bloquer un arc.
+        #           -> Vu que nous ne cherchons pas le minimum d'arcs à retirer, mais plutôt le flow minimal après
+        #              retirer k arcs, alors nous n'avons pas besoin d'évaluer les profondeurs < k.
+        #           -> De plus, ça permet d'éviter de garder une arborescence en mémoire et éviter les appels récursifs,
+        #              ce qui améliore la performance temporelle et de mémoire. 
+        #
+        #   - On peut se le permettre car une instance de FlowNetwork peut aisément blocker plusieurs de ses arcs
+        #     avant même de recalculer le flow maximal par Ford-Fulkerson. Donc, c'est un gain significatif.
             
-            for edge in search_tree_branch:
-                
-                # On supprime l'arête et réevalue le flow en utilisant F-F:
-                edge.block()
-                self.recalculate_flow()
+        # Parcourir toutes les combinaisons de k arcs à retirer, et faire le parcours:
+        for edge_combination in leaves:
                     
-                # Si le nouveau flow est nul, nous avons trouvé une solution optimale:
-                if(self.flow == 0):
-                    return (0, local_minimum_edges.append(edge))
+            # On supprime toutes les arêtes, puis réevalue le flow en utilisant F-F:
+            for edge in edge_combination:
+                print(edge)
+                edge.block()
+            self.recalculate_flow()
+                    
+            # Si le nouveau flow est nul, nous avons trouvé une solution optimale:
+            if(self.flow == 0):
+                return (0, edge_combination)
                 
-                # Si le nouveau flow est le minimum par rapport à cette profondeur de l'arbre.
-                #   - Autrement ça veut dire qu'on avait déjà atteint le minimum local précédemment, alors on backtrackerait 
-                #     dans l'arbre de recherche. Avec notre représentation 'edge_combinations' de cet arbre décisionnel, ça
-                #     signifierait tout simplement de passer à la prochaine combinaison d'arc.
-                if(self.flow < local_minimum_flow):
-                    local_minimum_flow = self.flow
-                    local_minimum_edges.append(edge)
+            # Si le nouveau flow est le minimum par rapport à cette profondeur de l'arbre.
+            #   - Autrement ça veut dire qu'on avait déjà atteint le minimum local précédemment, alors on backtrackerait 
+            #     dans l'arbre de recherche. Avec notre représentation 'edge_combinations' de cet arbre décisionnel, ça
+            #     signifierait tout simplement de passer à la prochaine combinaison d'arc.
+            if(self.flow < min_flow):
+                min_flow = self.flow
+                min_edges = edge_combination
             
-            # On ajour le minimum local aux solutions candidates:
-            min_flows.append(local_minimum_flow)
-            min_edges.append(local_minimum_edges)
-            
-            # On débloque et reset, pour la prochaine itération/branche:
-            for edge in search_tree_branch:
+            # On débloque et reset, pour la prochaine itération/feuille:
+            for edge in edge_combination:
                 edge.unblock()
             
-        # Retourner le meilleur minimum local, si aucune solution optimale n'a été trouvé:
-        index_solution = 0
-        for i in range(1, len(min_flows)):
-            if(min_flows[i] < min_flows[index_solution]):
-                index_solution = i
-        return (min_flows[index_solution], min_edges[index_solution])
+        # Retourner le meilleur minimum local, si aucune solution optimale (flow = 0) n'a été trouvé:
+        return (min_flow, min_edges)
             
-                    
-            
-                        
-                
-    
-    
-    
+
     
     # Bonus!
     def draw(self, fileName = "flux_network_result"):
@@ -335,10 +305,8 @@ G.recalculate_flow()
 G.draw(file_name.replace(".csv", ""))
     
 if(len(min_edges) == 0):
-    print("Réponse trouvée était de supprimer aucun arc.")
+    print("Réponse trouvée était de suprimer aucun arc. Erreur?")
 elif(len(min_edges) == 1):
     print("Réponse est un flow de flow de " + str(min_flow) + " en enlevant l'arc allant de " + min_edges[0].node_from.name + " à " + min_edges[0].node_to.name)
 else:
-    print("Réponse est un flow de " + str(min_flow) + " en enlevant les arcs suivants: ")
-    for edge in min_edges:
-        print(" -> " + edge.node_from.name + " à " + edge.node_to.name + " (" + str(edge.get_flow()) + "/" + str(edge.get_max_capacity()) + ")")
+    print("Réponse est un flow de " + str(min_flow) + " en enlevant les arcs suivants: " + min_edges.join(", "))
