@@ -3,9 +3,11 @@ from collections import deque
 from itertools import combinations
 import heapq
 
-# Reading the csv file:
+# Reading the input and csv file:
 import csv
 import os
+import sys
+import time
 
 # Drawing the png:
 import networkx as nx
@@ -307,27 +309,42 @@ class FlowNetwork:
 
 
 
-# Change working directory to the directory of the current python file:
-abspath = os.path.abspath(__file__)
-dname = os.path.dirname(abspath)
-os.chdir(dname)
+if __name__ == '__main__':
 
-file_name = "ex3.csv"
-G = FlowNetwork(file_name)
-print("Max initial flow is: " + str(G.flow))
+    # Vérification des arguments en ligne de commande:
+    if(len(sys.argv) != 2):
+        print("Mauvais input!\nCommande attendue: python3 controle.py ex1.csv\nVeuillez réessayer.\n")
+        sys.exit(1)
 
-min_flow, min_edges = G.get_best_edges_to_block_using_backtracking()
+    # Lecture du fichier et construction du graphe:
+    file_name = sys.argv[1]
+    G = FlowNetwork(file_name)
+    print("\nMax initial flow is: " + str(G.flow))
+
+    # Timer, start!
+    time_started = time.time()
     
-for edge in min_edges:
-    edge.block()
+    # On roule l'algo:
+    min_flow, min_edges = G.get_best_edges_to_block_using_backtracking()
     
-G.recalculate_flow()
+    # Done!
+    time_elapsed = time.time() - time_started
     
-if(len(min_edges) == 0):
-    print("Réponse trouvée était de suprimer aucun arc. Erreur?")
-elif(len(min_edges) == 1):
-    print("Réponse est un flow de flow de " + str(min_flow) + " en enlevant l'arc " + str(min_edges[0]))
-else:
-    print("Réponse est un flow de " + str(min_flow) + " en enlevant les arcs suivants: " + (", ").join([str(edge) for edge in min_edges]))
+    if(len(min_edges) == 0): print("Réponse trouvée était de suprimer aucun arc. Erreur?")
+    elif(len(min_edges) == 1): print("Réponse est un flow de flow de " + str(min_flow) + " en enlevant l'arc " + str(min_edges[0]))
+    else: print("Réponse est un flow de " + str(min_flow) + " en enlevant les arcs suivants: " + (", ").join([str(edge) for edge in min_edges]))
+    print(f'Temps d\'ex: {(time_elapsed * 1000):.3f} millisecondes\n')
     
-G.draw(file_name.replace(".csv", ""))
+    # Recalculer pour l'image (for the png):
+    for edge in min_edges: edge.block()
+    G.recalculate_flow()
+
+    # Change working directory to the directory of the current python file:
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+    # Save the png:
+    G.draw(file_name.replace(".csv", ""))
+
+    # Save the txt:
+    with open("resultats_" + file_name.replace(".csv", "") + ".txt","w+", encoding='utf-8') as f:
+        f.write(("\n").join([str(edge) for edge in min_edges]))
